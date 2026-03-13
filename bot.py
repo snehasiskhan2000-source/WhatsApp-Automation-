@@ -1,7 +1,7 @@
 import asyncio
 import os
 import datetime
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from playwright.async_api import async_playwright
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -75,7 +75,7 @@ async def get_pairing_code(phone_number):
 
 async def send_whatsapp_message(target, message, files=None):
     try:
-        # Search for the target (or "You" for personal inbox)
+        # Search for the target
         await wa_page.fill('div[title="Search input textbox"]', target)
         await asyncio.sleep(2)
         await wa_page.keyboard.press("Enter")
@@ -84,8 +84,11 @@ async def send_whatsapp_message(target, message, files=None):
         # Type and send message
         await wa_page.fill('div[title="Type a message"]', message)
         await wa_page.keyboard.press("Enter")
+        await asyncio.sleep(2)
+
+        # TODO: Add logic here to attach and send files if `files` list is not empty
         
-        # Confirmation to personal inbox ("not in bot")
+        # Confirmation to personal inbox
         await wa_page.fill('div[title="Search input textbox"]', "You")
         await asyncio.sleep(2)
         await wa_page.keyboard.press("Enter")
@@ -100,6 +103,7 @@ async def send_whatsapp_message(target, message, files=None):
 @app.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
     chat_id = message.chat.id
+    await message.reply("Checking WhatsApp status... ⏳")
     is_logged_in = await check_wa_login()
     
     if is_logged_in:
@@ -107,7 +111,7 @@ async def start_cmd(client, message):
             [[KeyboardButton("Schedule A Message 🔥")]],
             resize_keyboard=True
         )
-        await message.reply("Whatsapp Session Active, You Don't Have To Log-in Again🤗", reply_markup=menu)
+        await message.reply("Whatsapp Session Active,You Don't Have To Log-in Again🤗", reply_markup=menu)
         user_states[chat_id] = "IDLE"
     else:
         await message.reply("Send Your Number📱\n(Include country code without +, e.g., 919876543210)", reply_markup=ReplyKeyboardRemove())
@@ -143,7 +147,7 @@ async def handle_text(client, message):
     elif state == "WAITING_MESSAGE":
         user_data[chat_id] = {"message": text, "files": []}
         menu = ReplyKeyboardMarkup(
-            [[KeyboardButton("Yes"), KeyboardButton("No,Continue")]],
+            [[KeyboardButton("Yes")], [KeyboardButton("No,Continue")]],
             resize_keyboard=True
         )
         await message.reply("Want To Attach Any Files?🤔", reply_markup=menu)
@@ -161,7 +165,7 @@ async def handle_text(client, message):
         try:
             # Parse 1403261535 -> DDMMYYHHMM
             dt = datetime.datetime.strptime(text, "%d%m%y%H%M")
-            # For this example, sending to a placeholder target name.
+            # Set target contact (Change "My Boss" to the name of the contact you want to schedule to, or modify code to ask for it)
             target = "My Boss" 
             
             # Schedule the job
@@ -173,7 +177,7 @@ async def handle_text(client, message):
             )
             
             menu = ReplyKeyboardMarkup([[KeyboardButton("Schedule A Message 🔥")]], resize_keyboard=True)
-            await message.reply(f"Message Schedule Successfull🎉\nSet for: {dt.strftime('%d %b %Y, %I:%M %p')}", reply_markup=menu)
+            await message.reply("Message Schedule Successfull🎉", reply_markup=menu)
             user_states[chat_id] = "IDLE"
         except ValueError:
             await message.reply("Invalid time format! Please use DDMMYYHHMM (e.g., 1403261535). Try again:")
@@ -187,7 +191,7 @@ async def handle_files(client, message):
         user_data[chat_id]["files"].append(file_path)
         
         menu = ReplyKeyboardMarkup(
-            [[KeyboardButton("Yes"), KeyboardButton("No,Continue")]],
+            [[KeyboardButton("Yes")], [KeyboardButton("No,Continue")]],
             resize_keyboard=True
         )
         await message.reply("Want To Attach More Files?🤔", reply_markup=menu)
@@ -199,9 +203,11 @@ async def main():
     await init_whatsapp()
     scheduler.start()
     await app.start()
-    print("Bot is running...")
-    await asyncio.Event().wait()
+    print("Bot is running... 💀")
+    await idle()
+    await app.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
-              
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    
