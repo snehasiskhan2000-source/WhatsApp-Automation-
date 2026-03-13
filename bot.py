@@ -57,20 +57,33 @@ async def check_wa_login():
         return False
 
 async def get_pairing_code(phone_number):
+async def get_pairing_code(phone_number):
     try:
-        # Click "Link with phone number"
+        print("Waiting for 'Link with phone number' button to load...")
+        # Give Render up to 30 seconds to fully load the heavy WhatsApp page
+        await wa_page.wait_for_selector('span[role="button"]:has-text("Link with phone number")', timeout=30000)
         await wa_page.click('span[role="button"]:has-text("Link with phone number")')
-        await asyncio.sleep(1)
-        # Enter phone number
+        
+        await asyncio.sleep(2)
+        print("Typing phone number...")
+        await wa_page.wait_for_selector('input[type="text"]', timeout=10000)
         await wa_page.fill('input[type="text"]', phone_number)
+        
         await wa_page.click('div[role="button"]:has-text("Next")')
-        await asyncio.sleep(3)
+        
+        print("Waiting for pairing code to generate...")
+        # Give WhatsApp up to 20 seconds to connect to their servers and generate the code
+        await wa_page.wait_for_selector('div[data-testid="link-device-code-screen"] div[aria-details]', timeout=20000)
+        
         # Extract the code
         code_element = await wa_page.query_selector('div[data-testid="link-device-code-screen"] div[aria-details]')
         if code_element:
-            return await code_element.inner_text()
+            code = await code_element.inner_text()
+            print(f"Successfully generated code: {code}")
+            return code
+            
     except Exception as e:
-        print(f"Error getting code: {e}")
+        print(f"Playwright UI Error: {e}")
         return None
 
 async def send_whatsapp_message(target, message, files=None):
