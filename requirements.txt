@@ -2,3 +2,4 @@ pyrotgfork
 playwright
 APScheduler
 aiohttp
+TgCrypto
